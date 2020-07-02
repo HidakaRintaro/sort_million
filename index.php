@@ -4,6 +4,9 @@ require './fnc.php';
 ini_set("memory_limit", "1G");
 set_time_limit(0);
 
+print "実行開始[メモリ使用量]：". memory_get_usage() / (1024 * 1024) ."MB<br>";
+print "実行開始[メモリ最大使用量]：". memory_get_peak_usage() / (1024 * 1024) ."MB<br>";
+print "-----------------------------------------------<br>";
 $start = hrtime(true);
 
 // ファイル読込
@@ -15,42 +18,70 @@ $a1 = hrtime(true);
 // --------------------------
 // ソート
 // --------------------------
-$cnt = 0;
-while ($cnt < 10) {
-  $left = $cnt * 100000;
-  $right = 100000 * ($cnt + 1) - 1;
-  $data_list = q_sort_a($list, $left, $right, 2);
-  $cnt++;
+$num_list = []; // [[ソート開始位置, ソート件数],・・・]
+$split = 16; // 配列の分割数
+$num = intval(count($list) / $split);
+$rem = intval(count($list) % $split);
+$total = count($list); // データの全体件数
+for ($i=0; $i < $split; $i++) {
+  $left = $i * $num;
+  $right = $num * ($i + 1) - 1;
+  if ($i < $split-1) {
+    $data_list = q_sort_a($list, $left, $right, 2);
+    $num_list[] = [$left, ( $right - $left + 1 )];
+  } else {
+    $data_list = q_sort_a($list, $left, $right+$rem, 2);
+    $num_list[] = [$left, ( $right - $left + 1) + $rem];
+  }
 }
-// (配列,　前半開始位置,　前半件数,　後半開始位置,　後半件数,　ソートカラム)
-$data_list = merge($data_list, 0, 100000, 100000, 100000, 2);
-$data_list = merge($data_list, 200000, 100000, 300000, 100000, 2);
-$data_list = merge($data_list, 400000, 100000, 500000, 100000, 2);
-$data_list = merge($data_list, 600000, 100000, 700000, 100000, 2);
-$data_list = merge($data_list, 800000, 100000, 900000, 100000, 2);
-$data_list = merge($data_list, 0, 200000, 200000, 200000, 2);
-$data_list = merge($data_list, 400000, 200000, 600000, 200000, 2);
-$data_list = merge($data_list, 400000, 400000, 800000, 200000, 2);
-$data_list = merge($data_list, 0, 400000, 400000, 600000, 2);
 
-// $data_list = mergeSort($list,0,count($list)-1);
-// $data_list = m_sort_a($list,0,count($list)-1);
-// $left = 0;
-// $right = count($list) - 1;
-// // $right = 1000 - 1;
-// $data_list = quick_sort($list, $left, $right);
+// マージの件数が全体の件数と一致するまで
+for ($i=0; $total != $num_list[$i][1]; $i += 2) {
+  // 前後位置を比較し、小さい方を前半の開始位置にする。
+  if ( $num_list[$i][0] < $num_list[$i+1][0]) {
+    $data_list = merge(
+      $data_list,          // 配列
+      $num_list[$i][0],    // 前半開始位置
+      $num_list[$i][1],    // 前半件数
+      $num_list[$i+1][0],  // 後半開始位置
+      $num_list[$i+1][1],  // 後半件数
+      2                    // ソート対象カラム
+    );
+  } else {
+    $data_list = merge(
+      $data_list,          // 配列
+      $num_list[$i+1][0],  // 前半開始位置
+      $num_list[$i+1][1],  // 前半件数
+      $num_list[$i][0],    // 後半開始位置
+      $num_list[$i][1],    // 後半件数
+      2                    // ソート対象カラム
+    );
+  }
+  $num_list[] = [
+    $num_list[$i][0],
+    $num_list[$i][1] + $num_list[$i+1][1]
+  ];
+}
 
-// $data_list = $list;
-// sort($data_list);
+// 同一値のチェック
+$same_list = double_check($data_list);
+echo '<pre>';
+var_dump($same_list[0]);
+var_dump($same_list[1]);
+var_dump($same_list[2]);
+
 
 $a2 = hrtime(true);
+print "処理2実行後[メモリ使用量]：". memory_get_usage() / (1024 * 1024) ."MB<br>";
+print "処理2実行後[メモリ最大使用量]：". memory_get_peak_usage() / (1024 * 1024) ."MB<br>";
+print "-----------------------------------------------<br>";
 
-// // 2次元
-// $fp = fopen('log1.csv', 'a');
-// foreach ($data_list as $row) {
-//   fputs($fp, implode(',', $row)."\n");
-// }
-// fclose($fp);
+// 2次元
+$fp = fopen('log1.csv', 'a');
+foreach ($data_list as $row) {
+  fputs($fp, implode(',', $row)."\n");
+}
+fclose($fp);
 
 // // 1次元
 // $fp = fopen('log1.csv', 'a');
